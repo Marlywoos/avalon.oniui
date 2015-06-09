@@ -6,7 +6,11 @@
  * @introduce
  *    <p>slider组件用来拖动手柄选择数值，可以水平拖动、垂直拖动、设置range使得两边都可以拖动，或者根据设置的步长更新滑块数值</p>
  */
-define(["../draggable/avalon.draggable", "text!./avalon.slider.html", "css!../chameleon/oniui-common.css", "css!./avalon.slider.css", "../avalon.getModel"], function(avalon, sourceHTML) {
+define(["../draggable/avalon.draggable", 
+        "text!./avalon.slider.html", 
+        "css!../chameleon/oniui-common.css", 
+        "css!./avalon.slider.css", 
+        "../avalon.getModel"], function(avalon, sourceHTML) {
     /**
      * @global Handlers ： 保存页面上所有滑动手柄
      * @global Index :点中手柄在Handlers中的索引，或滑动手柄在handlers中的索引 
@@ -86,7 +90,8 @@ define(["../draggable/avalon.draggable", "text!./avalon.slider.html", "css!../ch
         }
         var vmodel = avalon.define(data.sliderId, function(vm) {
             avalon.mix(vm, options);
-            vm.$skipArray = ["template", "widgetElement", "step", "_dragEnd"]
+            vm.$skipArray = ["template","rootElement", "widgetElement", "step", "_dragEnd"]
+            vm.rootElement = slider
             vm.widgetElement = element
             vm.step = (options.step > 0) ? options.step : 1
             vm.disabled = element.disabled

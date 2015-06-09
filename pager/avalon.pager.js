@@ -9,13 +9,13 @@ define(["avalon",
     "text!./avalon.pager.html",
     "css!../chameleon/oniui-common.css",
     "css!./avalon.pager.css"
-], function(avalon, template) {
+], function (avalon, template) {
 
-    var widget = avalon.ui.pager = function(element, data, vmodels) {
+    var widget = avalon.ui.pager = function (element, data, vmodels) {
         var options = data.pagerOptions
         var pageOptions = options.options
         if (Array.isArray(pageOptions)) {
-            options.options = pageOptions.map(function(el) {
+            options.options = pageOptions.map(function (el) {
                 var obj = {}
                 switch (typeof el) {
                     case "number":
@@ -36,16 +36,20 @@ define(["avalon",
         //方便用户对原始模板进行修改,提高制定性
         options.template = options.getTemplate(template, options)
         options._currentPage = options.currentPage
-        var vmodel = avalon.define(data.pagerId, function(vm) {
-            avalon.mix(vm, options)
+        var vmodel = avalon.define(data.pagerId, function (vm) {
+            avalon.mix(vm, options, {
+                regional: widget.defaultRegional
+            })
             vm.widgetElement = element
-            vm.$skipArray = ["showPages", "widgetElement", "template", "ellipseText", "alwaysShowPrev", "alwaysShowNext"]
+            vm.rootElement = {}
+            vm.$skipArray = ["showPages", "rootElement", "widgetElement", "template", "ellipseText", "alwaysShowPrev", "alwaysShowNext"]
             //这些属性不被监控
-            vm.$init = function(continueScan) {
+            vm.$init = function (continueScan) {
                 var pageHTML = options.template
                 element.style.display = "none"
-                setTimeout(function() {
+                setTimeout(function () {
                     element.innerHTML = pageHTML
+                    vm.rootElement = element.getElementsByTagName("*")[0]
                     element.style.display = "block"
                     if (continueScan) {
                         continueScan()
@@ -58,12 +62,13 @@ define(["avalon",
                     }
                 }, 100)
             }
-            vm.$remove = function() {
+            vm.$remove = function () {
                 element.innerHTML = element.textContent = ""
             }
-            vm.jumpPage = function(event, page) {
+            vm.jumpPage = function (event, page) {
                 event.preventDefault()
-                if (page !== vm.currentPage) {
+                var enabled = this.className.indexOf("state-disabled") === -1
+                if (enabled && page !== vm.currentPage) {
                     switch (page) {
                         case "first":
                             vm.currentPage = 1
@@ -87,36 +92,34 @@ define(["avalon",
                             vm.currentPage = page
                             break
                     }
-                    if (this.className.indexOf("state-disabled") === -1) {
-                        vm.onJump.call(element, event, vm)
-                        efficientChangePages(vm.pages, getPages(vm))
-                    }
+                    vm.onJump.call(element, event, vm)
+                    efficientChangePages(vm.pages, getPages(vm))
                 }
             }
-            vm.$watch("totalItems", function() {
+            vm.$watch("totalItems", function () {
                 efficientChangePages(vm.pages, getPages(vm))
             })
-            vm.$watch("perPages", function(a) {
+            vm.$watch("perPages", function (a) {
                 vm.currentPage = 1
                 efficientChangePages(vm.pages, getPages(vm))
             })
-            vm.$watch("currentPage", function(a) {
+            vm.$watch("currentPage", function (a) {
                 vmodel._currentPage = a
                 efficientChangePages(vm.pages, getPages(vm))
             })
-            vm.isShowPrev = function() {
+            vm.isShowPrev = function () {
                 var a = vm.alwaysShowPrev;
                 var b = vm.firstPage
                 return a || b !== 1
             }
-            vm.isShowNext = function() {
+            vm.isShowNext = function () {
                 var a = vm.alwaysShowNext
                 var b = vm.lastPage
                 var c = vm.totalPages
                 return a || b !== c
             }
 
-            vm.changeCurrentPage = function(e, value) {
+            vm.changeCurrentPage = function (e, value) {
                 if (e.type === "keyup") {
                     value = this.value
                     if (e.keyCode !== 13)
@@ -134,6 +137,60 @@ define(["avalon",
             }
             vm.pages = []
             vm.getPages = getPages
+
+            //设置语言包
+            vm.setRegional = function (regional) {
+                vmodel.regional = regional
+            }
+            vm._getTotalPages = function (totalPages) {
+                //return {{regional.totalText}}{{totalPages}}{{regional.pagesText}}，{{regional.toText}}{{regional.numberText}}
+                var regional = vmodel.regional,
+                        html = [regional.totalText, totalPages]
+
+                if (totalPages > 1) {
+                    html.push(regional.pagesText)
+                } else {
+                    html.push(regional.pageText)
+                }
+
+                html = html.concat([" ", regional.jumpToText, regional.numberText])
+
+                return html.join("")
+            }
+
+            /**
+             * @config {Function} 获取页码上的title的函数
+             * @param {String|Number} a 当前页码的类型，如first, prev, next, last, 1, 2, 3
+             * @param {Number} currentPage 当前页码
+             * @param {Number} totalPages 最大页码
+             * @returns {String}
+             */
+            vm.getTitle = function (a, currentPage, totalPages) {
+
+                var regional = vmodel.regional
+
+                switch (a) {
+                    case "first":
+                        if (currentPage == 1) {
+                            return regional.currentText
+                        }
+                        return regional.jumpToText + " " + regional.firstText
+                    case "prev":
+                        return regional.jumpToText + " " + regional.prevText
+                    case "next":
+                        return regional.jumpToText + " " + regional.nextText
+                    case "last":
+                        if (currentPage == totalPages) {
+                            return regional.currentText
+                        }
+                        return regional.jumpToText + " " + regional.lastText
+                    default:
+                        if (a === currentPage) {
+                            return regional.currentText
+                        }
+                        return regional.jumpToText + regional.numberText + " " + a + regional.pageText
+                }
+            }
         })
         vmodel.pages = getPages(vmodel)
 
@@ -161,10 +218,10 @@ define(["avalon",
                 el: obj[i].el
             })
         }
-        scripts.sort(function(a, b) {
+        scripts.sort(function (a, b) {
             return a.el - b.el
         })
-        scripts.forEach(function(el, index) {
+        scripts.forEach(function (el, index) {
             el.index = index
         })
         //添加添加
@@ -185,6 +242,27 @@ define(["avalon",
         }
 
     }
+
+    //默认语言包为中文简体
+    widget.regional = []
+    widget.regional["zh-CN"] = {
+        prevText: "上一页",
+        nextText: "下一页",
+        confirmText: "确定",
+        totalText: "共",
+        pagesText: "页",
+        pageText: "页",
+        toText: "到",
+        jumpToText: "跳转到",
+        currentText: "当前页",
+        firstText: "第一页",
+        lastText: "最后一页",
+        numberText: "第"
+    }
+
+    //设置默认语言包
+    widget.defaultRegional = widget.regional["zh-CN"]
+
     widget.defaults = {
         perPages: 10, //@config {Number} 每页包含多少条目
         showPages: 10, //@config {Number} 中间部分一共要显示多少页(如果两边出现省略号,即它们之间的页数) 
@@ -209,46 +287,16 @@ define(["avalon",
          * @param {Object} opts
          * @returns {String}
          */
-        getTemplate: function(tmpl, opts) {
+        getTemplate: function (tmpl, opts) {
             return tmpl
         },
         options: [], // @config {Array}数字数组或字符串数组或对象数组,但都转换为对象数组,每个对象都应包含text,value两个属性, 用于决定每页有多少页(看avalon.pager.ex3.html) 
         /**
          * @config {Function} 页面跳转时触发的函数,如果当前链接处于不可以点状态(oni-state-disabled),是不会触发的
          * @param {Event} e
-         * @param {Number} page  当前页码
+         * @param {Object} vm  组件对应的VM
          */
-        onJump: function(e, page) {
-        },
-        /**
-         * @config {Function} 获取页码上的title的函数
-         * @param {String|Number} a 当前页码的类型，如first, prev, next, last, 1, 2, 3
-         * @param {Number} currentPage 当前页码
-         * @param {Number} totalPages 最大页码
-         * @returns {String}
-         */
-        getTitle: function(a, currentPage, totalPages) {
-            switch (a) {
-                case "first":
-                    if (currentPage == 1) {
-                        return "当前页"
-                    }
-                    return "跳转到第一页"
-                case "prev":
-                    return "跳转到上一页"
-                case "next":
-                    return "跳转到下一页"
-                case "last":
-                    if (currentPage == totalPages) {
-                        return "当前页"
-                    }
-                    return "跳转到最后一页"
-                default:
-                    if (a === currentPage) {
-                        return "当前页"
-                    }
-                    return "跳转到第" + a + "页"
-            }
+        onJump: function (e, vm) {
         }
     }
 
@@ -331,7 +379,8 @@ define(["avalon",
  [指定上一页,下一页的文本](avalon.pager.ex4.html)
  [通过左右方向键或滚轮改变页码](avalon.pager.ex5.html)
  [总是显示上一页与下一页按钮](avalon.pager.ex6.html)
- * 
+ [多语言支持](avalon.pager.ex7.html)
+ *
  */
 //http://luis-almeida.github.io/jPages/defaults.html
 //http://gist.corp.qunar.com/jifeng.yao/gist/demos/pager/pager.html

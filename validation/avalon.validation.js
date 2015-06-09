@@ -67,41 +67,48 @@
  *   getMessage: function(){}//用户调用到方法即可以拿到完整的错误消息——“当前位置必须是在北京”
  * }
  * ```
- * <p>如果用户指定了<code>norequired</code>验证规则，如果input为空, 那么就会跳过之后的所有验证</p>
+ * <p>如果用户指定了<code>norequired</code>验证规则，如果input为空, 那么就会跳过之后的所有验证; 在定义拦截器时,务必将它放在最前面,
+ * 如ms-duplex-norequired-int-gt='xxx'
+ * </p>
  */
 
-define(["../promise/avalon.promise"], function(avalon) {
+define(["avalon", "../mmPromise/mmPromise"], function(avalon) {
     if (!avalon.duplexHooks) {
         throw new Error("你的版本少于avalon1.3.7，不支持ms-duplex2.0，请使用avalon.validation.old.js")
     }
-//==========================avalon.validation的专有逻辑========================
+    //==========================avalon.validation的专有逻辑========================
+
     function idCard(val) {
         if ((/^\d{15}$/).test(val)) {
             return true;
         } else if ((/^\d{17}[0-9xX]$/).test(val)) {
             var vs = "1,0,x,9,8,7,6,5,4,3,2".split(","),
-                    ps = "7,9,10,5,8,4,2,1,6,3,7,9,10,5,8,4,2".split(","),
-                    ss = val.toLowerCase().split(""),
-                    r = 0;
+                ps = "7,9,10,5,8,4,2,1,6,3,7,9,10,5,8,4,2".split(","),
+                ss = val.toLowerCase().split(""),
+                r = 0;
             for (var i = 0; i < 17; i++) {
                 r += ps[i] * ss[i];
             }
             return (vs[r % 11] == ss[17]);
         }
     }
+    // isCorrectDate("2015-2-21") true
+    // isCorrectDate("2015-2-31") false
+
     function isCorrectDate(value) {
-        if (rdate.test(value)) {
-            var date = parseInt(RegExp.$1, 10);
-            var month = parseInt(RegExp.$2, 10);
-            var year = parseInt(RegExp.$3, 10);
-            var xdata = new Date(year, month - 1, date, 12, 0, 0, 0);
-            if ((xdata.getUTCFullYear() === year) && (xdata.getUTCMonth() === month - 1) && (xdata.getUTCDate() === date)) {
-                return true
+        if (typeof value === "string" && value) { //是字符串但不能是空字符
+            var arr = value.split("-") //可以被-切成3份，并且第1个是4个字符
+            if (arr.length === 3 && arr[0].length === 4) {
+                var year = ~~arr[0] //全部转换为非负整数
+                var month = ~~arr[1] - 1
+                var date = ~~arr[2]
+                var d = new Date(year, month, date)
+                return d.getFullYear() === year && d.getMonth() === month && d.getDate() === date
             }
         }
         return false
     }
-    var rdate = /^\d{4}\-\d{1,2}\-\d{1,2}$/
+
     //  var remail = /^[a-zA-Z0-9.!#$%&amp;'*+\-\/=?\^_`{|}~\-]+@[a-zA-Z0-9\-]+(?:\.[a-zA-Z0-9\-]+)*$/
     var remail = /^([A-Z0-9]+[_|\_|\.]?)*[A-Z0-9]+@([A-Z0-9]+[_|\_|\.]?)*[A-Z0-9]+\.[A-Z]{2,3}$/i
     var ripv4 = /^(25[0-5]|2[0-4]\d|[01]?\d\d?)\.(25[0-5]|2[0-4]\d|[01]?\d\d?)\.(25[0-5]|2[0-4]\d|[01]?\d\d?)\.(25[0-5]|2[0-4]\d|[01]?\d\d?)$/i
@@ -116,16 +123,16 @@ define(["../promise/avalon.promise"], function(avalon) {
         ce: /^(?:0?1)(?:33|53|8[079])\d{8}$/,
         //中国大陆
         cn: /^(?:0?1)[3458]\d{9}$/
-                //中国香港
-                //   hk: /^(?:0?[1569])(?:\d{7}|\d{8}|\d{12})$/,
-                //澳门
-                // macao: /^6\d{7}$/,
-                //台湾
-                //  tw: /^(?:0?[679])(?:\d{7}|\d{8}|\d{10})$//*,
-                //韩国
-                //  kr:/^(?:0?[17])(?:\d{9}|\d{8})$/,
-                //日本
-                // jp:/^(?:0?[789])(?:\d{9}|\d{8})$/*/
+        //中国香港
+        //   hk: /^(?:0?[1569])(?:\d{7}|\d{8}|\d{12})$/,
+        //澳门
+        // macao: /^6\d{7}$/,
+        //台湾
+        //  tw: /^(?:0?[679])(?:\d{7}|\d{8}|\d{10})$//*,
+        //韩国
+        //  kr:/^(?:0?[17])(?:\d{9}|\d{8})$/,
+        //日本
+        // jp:/^(?:0?[789])(?:\d{9}|\d{8})$/*/
     }
     /*
      * http://login.sdo.com/sdo/PRes/4in1_2/js/login.js
@@ -170,7 +177,6 @@ define(["../promise/avalon.promise"], function(avalon) {
             message: '可以不写',
             get: function(value, data, next) {
                 next(true)
-                data.norequired = value === ""
                 return value
             }
         },
@@ -192,7 +198,7 @@ define(["../promise/avalon.promise"], function(avalon) {
                     }
                 }
                 next(ok)
-                return  value
+                return value
             }
         },
         decimal: {
@@ -418,37 +424,38 @@ define(["../promise/avalon.promise"], function(avalon) {
             }
         }
     })
-//<input type="number" max=x min=y step=z/> <input type="range" max=x min=y step=z/>
-//
-    function fixEvent(event) {
-        if (event.target) {
-            return event
+    //<input type="number" max=x min=y step=z/> <input type="range" max=x min=y step=z/>
+    //
+
+        function fixEvent(event) {
+            if (event.target) {
+                return event
+            }
+            var ret = {}
+            for (var i in event) {
+                ret[i] = event[i]
+            }
+            var target = ret.target = event.srcElement
+            if (event.type.indexOf("key") === 0) {
+                ret.which = event.charCode != null ? event.charCode : event.keyCode
+            } else if (/mouse|click/.test(event.type)) {
+                var doc = target.ownerDocument || document
+                var box = doc.compatMode === "BackCompat" ? doc.body : doc.documentElement
+                ret.pageX = event.clientX + (box.scrollLeft >> 0) - (box.clientLeft >> 0)
+                ret.pageY = event.clientY + (box.scrollTop >> 0) - (box.clientTop >> 0)
+                ret.wheelDeltaY = ret.wheelDelta
+                ret.wheelDeltaX = 0
+            }
+            ret.timeStamp = new Date - 0
+            ret.originalEvent = event
+            ret.preventDefault = function() { //阻止默认行为
+                event.returnValue = false
+            }
+            ret.stopPropagation = function() { //阻止事件在DOM树中的传播
+                event.cancelBubble = true
+            }
+            return ret
         }
-        var ret = {}
-        for (var i in event) {
-            ret[i] = event[i]
-        }
-        var target = ret.target = event.srcElement
-        if (event.type.indexOf("key") === 0) {
-            ret.which = event.charCode != null ? event.charCode : event.keyCode
-        } else if (/mouse|click/.test(event.type)) {
-            var doc = target.ownerDocument || document
-            var box = doc.compatMode === "BackCompat" ? doc.body : doc.documentElement
-            ret.pageX = event.clientX + (box.scrollLeft >> 0) - (box.clientLeft >> 0)
-            ret.pageY = event.clientY + (box.scrollTop >> 0) - (box.clientTop >> 0)
-            ret.wheelDeltaY = ret.wheelDelta
-            ret.wheelDeltaX = 0
-        }
-        ret.timeStamp = new Date - 0
-        ret.originalEvent = event
-        ret.preventDefault = function() { //阻止默认行为
-            event.returnValue = false
-        }
-        ret.stopPropagation = function() { //阻止事件在DOM树中的传播
-            event.cancelBubble = true
-        }
-        return ret
-    }
     var widget = avalon.ui.validation = function(element, data, vmodels) {
         var options = data.validationOptions
         var onSubmitCallback
@@ -489,17 +496,35 @@ define(["../promise/avalon.promise"], function(avalon) {
 
             vm.validateAll = function(callback) {
                 var fn = typeof callback === "function" ? callback : vm.onValidateAll
-                var promise = vm.data.filter(function(el) {
-                    return el.element && !el.element.disabled && vmodel.widgetElement.contains(el.element);
+                var promise = vm.data.filter(function(data) {
+                    var el = data.element
+                    return el && !el.disabled && vmodel.widgetElement.contains(el)
                 }).map(function(data) {
-                    return  vm.validate(data, true)
+                    return vm.validate(data, true)
                 })
                 Promise.all(promise).then(function(array) {
                     var reasons = []
-                    for (var i = 0, el; el = array[i++]; ) {
+                    for (var i = 0, el; el = array[i++];) {
                         reasons = reasons.concat(el)
                     }
-                    fn.call(vm.widgetElement, reasons)//这里只放置未通过验证的组件
+                    if (vm.deduplicateInValidateAll) {
+                        var uniq = {}
+                        reasons = reasons.filter(function(data) {
+                            var el = data.element
+                            var id = el.getAttribute("data-validation-id")
+                            if (!id) {
+                                id = setTimeout("1")
+                                el.setAttribute("data-validation-id", id)
+                            }
+                            if (uniq[id]) {
+                                return false
+                            } else {
+                                uniq[id] = true
+                                return true
+                            }
+                        })
+                    }
+                    fn.call(vm.widgetElement, reasons) //这里只放置未通过验证的组件
                 })
             }
 
@@ -512,9 +537,10 @@ define(["../promise/avalon.promise"], function(avalon) {
                     return el.element
                 }).forEach(function(data) {
                     try {
-                        vm.onReset.call(data.element, {type: "reset"}, data)
-                    } catch (e) {
-                    }
+                        vm.onReset.call(data.element, {
+                            type: "reset"
+                        }, data)
+                    } catch (e) {}
                 })
                 var fn = typeof callback == "function" ? callback : vm.onResetAll
                 fn.call(vm.widgetElement)
@@ -535,26 +561,26 @@ define(["../promise/avalon.promise"], function(avalon) {
                     var hook = inwardHooks[name] || globalHooks[name]
                     if (!elem.disabled) {
                         var resolve, reject
-                        promises.push(new Promise(function(a, b) {
-                            resolve = a
-                            reject = b
-                        }))
-                        var next = function(a) {
-                            if (data.norequired)
-                                a = true
-                            delete data.norequired
-                            if (a) {
-                                resolve(true)
-                            } else {
-                                var reason = {
-                                    element: elem,
-                                    data: data.data,
-                                    message: elem.getAttribute("data-duplex-message") || hook.message,
-                                    validateRule: name,
-                                    getMessage: getMessage
+                            promises.push(new Promise(function(a, b) {
+                                resolve = a
+                                reject = b
+                            }))
+                            var next = function(a) {
+                                if (data.norequired && value === "") {
+                                    a = true
                                 }
-                                resolve(reason)
-                            }
+                                if (a) {
+                                    resolve(true)
+                                } else {
+                                    var reason = {
+                                        element: elem,
+                                        data: data.data,
+                                        message: elem.getAttribute("data-duplex-" + name + "-message") || elem.getAttribute("data-duplex-message") || hook.message,
+                                        validateRule: name,
+                                        getMessage: getMessage
+                                    }
+                                    resolve(reason)
+                                }
                         }
                         data.data = {}
                         hook.get(value, data, next)
@@ -563,7 +589,7 @@ define(["../promise/avalon.promise"], function(avalon) {
                 //如果promises不为空，说明经过验证拦截器
                 var lastPromise = Promise.all(promises).then(function(array) {
                     var reasons = []
-                    for (var i = 0, el; el = array[i++]; ) {
+                    for (var i = 0, el; el = array[i++];) {
                         if (typeof el === "object") {
                             reasons.push(el)
                         }
@@ -620,6 +646,9 @@ define(["../promise/avalon.promise"], function(avalon) {
                         } else {
                             params.push(name)
                         }
+                        if (name === "norequired") {
+                            data.norequired = true
+                        }
                     })
                     data.validate = vm.validate
                     data.param = params.join("-")
@@ -627,10 +656,13 @@ define(["../promise/avalon.promise"], function(avalon) {
                     if (validateParams.length) {
                         if (vm.validateInKeyup) {
                             data.bound("keyup", function(e) {
-                                var ev = fixEvent(e)
-                                setTimeout(function() {
-                                    vm.validate(data, 0, ev)
-                                })
+                                var type = data.element && data.element.getAttribute("data-duplex-event")
+                                if (!type || /^(?:key|mouse|click|input)/.test(type)) {
+                                    var ev = fixEvent(e)
+                                    setTimeout(function() {
+                                        vm.validate(data, 0, ev)
+                                    })
+                                }
                             })
                         }
                         if (vm.validateInBlur) {
@@ -658,28 +690,30 @@ define(["../promise/avalon.promise"], function(avalon) {
         return vmodel
     }
     var rformat = /\\?{{([^{}]+)\}}/gm
-    function getMessage() {
-        var data = this.data || {}
-        return this.message.replace(rformat, function(_, name) {
-            return data[name] == null ? "" : data[name]
-        })
-    }
+
+        function getMessage() {
+            var data = this.data || {}
+            return this.message.replace(rformat, function(_, name) {
+                return data[name] == null ? "" : data[name]
+            })
+        }
     widget.defaults = {
         validationHooks: {}, //@config {Object} 空对象，用于放置验证规则
         onSuccess: avalon.noop, //@config {Function} 空函数，单个验证成功时触发，this指向被验证元素this指向被验证元素，传参为一个对象数组外加一个可能存在的事件对象
         onError: avalon.noop, //@config {Function} 空函数，单个验证失败时触发，this与传参情况同上
         onComplete: avalon.noop, //@config {Function} 空函数，单个验证无论成功与否都触发，this与传参情况同上
-        onValidateAll: avalon.noop, //@config {Function} 空函数，整体验证后或调用了validateAll方法后触发
+        onValidateAll: avalon.noop, //@config {Function} 空函数，整体验证后或调用了validateAll方法后触发；有了这东西你就不需要在form元素上ms-on-submit="submitForm"，直接将提交逻辑写在onValidateAll回调上
         onReset: avalon.noop, //@config {Function} 空函数，表单元素获取焦点时触发，this指向被验证元素，大家可以在这里清理className、value
         onResetAll: avalon.noop, //@config {Function} 空函数，当用户调用了resetAll后触发，
         validateInBlur: true, //@config {Boolean} true，在blur事件中进行验证,触发onSuccess, onError, onComplete回调
         validateInKeyup: true, //@config {Boolean} true，在keyup事件中进行验证,触发onSuccess, onError, onComplete回调
         validateAllInSubmit: true, //@config {Boolean} true，在submit事件中执行onValidateAll回调
-        resetInFocus: true //@config {Boolean} true，在focus事件中执行onReset回调
+        resetInFocus: true, //@config {Boolean} true，在focus事件中执行onReset回调,
+        deduplicateInValidateAll: false //@config {Boolean} false，在validateAll回调中对reason数组根据元素节点进行去重
     }
-//http://bootstrapvalidator.com/
-//https://github.com/rinh/jvalidator/blob/master/src/index.js
-//http://baike.baidu.com/view/2582.htm?fr=aladdin&qq-pf-to=pcqq.group
+    //http://bootstrapvalidator.com/
+    //https://github.com/rinh/jvalidator/blob/master/src/index.js
+    //http://baike.baidu.com/view/2582.htm?fr=aladdin&qq-pf-to=pcqq.group
 })
 /**
  @other
@@ -689,21 +723,54 @@ define(["../promise/avalon.promise"], function(avalon) {
  
  </p>
  
- <p> 也可以在页面添加不依赖于ms-duplex的绑定</p>
+ <h2>错误提示信息的添加</h2>
+ <p>比如说&lt;input ms-duplex-alpha="aaa"/&lt;要求用户输出的都是字母，如果输入其他类型的内容，
+ 它就会报错<b style="color:red">必须是字母</b>。为什么呢，因为alpha为一个内置拦截器，
+ 定义在avalon.duplexHooks上，结构为</p>
  ```javascript
- validateVM.data.push({
- valueAccessor: function(){}
- validateParam: "xxx",
- element: element
- })
+ alpha: {
+ message: '必须是字母',
+ get: function(value, data, next) {
+ next(/^[a-z]+$/i.test(value))
+ return value
+ }
+ },
  ```
+ 如果想显示别的提示信息有三种办法，一就是重写这个栏截器的message属性；
+ 二就是添加data-duplex-message="新提示信息"（不过这个已经不提倡使用了，
+ 因为一个表单控制可能使用N个拦截器做验证，如ms-duplex-required-alpha-minlength，
+ 这会覆盖其他拦截器的默认提示信息）；三就是使用data-duplex-alpha-message="专门用于alpha提示信息" 
+ ```html
+ <input ms-duplex-required-alpha-minlength="aaa" data-duplex-alpha-message="只能全是英文字母"
+ ```    
+ 此外，提示信息里面可以使用插值表达式，虽然不能使用变量，也应该够用，比如说minlength拦截器
+ ```javascript
+ minlength: {
+ message: '最少输入{{min}}个字',
+ get: function(value, data, next) {
+ var elem = data.element
+ var a = parseInt(elem.getAttribute("minlength"), 10)
+ if (!isFinite(a)) {
+ a = parseInt(elem.getAttribute("data-duplex-minlength"), 10)
+ }
+ var num = data.data.min = a
+ next(value.length >= num)
+ return value
+ }
+ },
+ ```          
+ 我们必须传入一个min参数,这要在元素上添加
+ ```html
+ <input ms-duplex-minlength="aaa" data-duplex-min="6"
+ ```         
+ 这样报错时就提示要<b>最少输入6个字</b>      
  */
 
 /**
  @links
  [自带验证规则required,int,decimal,alpha,chs,ipv4,phone](avalon.validation.ex1.html)
  [自带验证规则qq,id,email,url,date,passport,pattern](avalon.validation.ex2.html)
- [自带验证规则maxlength,minlength,lt,gt,eq,equal](avalon.validation.ex3.html)
+ [自带验证规则maxlength,minlength,lt,gt,eq,repeat](avalon.validation.ex3.html)
  [自带验证规则contains,contain](avalon.validation.ex4.html)
  [自带验证规则repeat(重复密码)](avalon.validation.ex5.html)
  [自定义验证规则](avalon.validation.ex6.html)
@@ -711,5 +778,8 @@ define(["../promise/avalon.promise"], function(avalon) {
  [禁止获得焦点时的onRest回调 resetInFocus ](avalon.validation.ex8.html)
  [与textbox组件的混用, ms-duplex-string的使用 ](avalon.validation.ex9.html)
  [验证表单元素存在disabled的情况 ](avalon.validation.ex10.html)
+ [deduplicateInValidateAll:true对validatieAll回调的reasons数组根据element进行去重 ](avalon.validation.ex13.html)
+ [验证dropdown组件 ](avalon.validation.ex14.html)
+ 
  
  */

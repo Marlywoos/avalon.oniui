@@ -65,8 +65,8 @@ define(["avalon","text!./avalon.tab.html", "text!./avalon.tab.panels.html", "tex
         })
         // 扫描获取tabs
         if(options.tabs == void 0) {
-            avalon.scan(element, vmodels)
             tabsParent = options.tabContainerGetter(element)
+            avalon.scan(tabsParent, vmodels)
             tabs = _getData(tabsParent, "li", options.target)
             // 销毁dom
             if(options.distroyDom) element.removeChild(tabsParent)
@@ -83,7 +83,7 @@ define(["avalon","text!./avalon.tab.html", "text!./avalon.tab.panels.html", "tex
         }
 
         var vmodel = avalon.define(data["tabId"], function(vm) {
-            vm.$skipArray = [/*"disable", "enable", "add", "activate", "remove", "getTemplate", */"widgetElement", "callInit"/*, "onActivate", "onAjaxCallback"*/]
+            vm.$skipArray = [/*"disable", "enable", "add", "activate", "remove", "getTemplate", */"widgetElement", "callInit"/*, "onActivate", "onAjaxCallback"*/, "rootElement"]
 
 
             vm.tabs = []
@@ -91,6 +91,7 @@ define(["avalon","text!./avalon.tab.html", "text!./avalon.tab.panels.html", "tex
 
             avalon.mix(vm, options)
             vm.widgetElement = element
+            vm.rootElement = element
            
             var inited
                 , switchTimer
@@ -131,7 +132,11 @@ define(["avalon","text!./avalon.tab.html", "text!./avalon.tab.panels.html", "tex
             vm.activate = function(event, index, fix) {
                 // 猥琐的解决在ie里面报找不到成员的bug
                 // !fix && event.preventDefault()
-                if (vm.tabs[index].disabled === true || vm.tabs[index].linkOnly) {
+                if (vm.tabs[index].disabled === true) {
+                    if(vm.event === "click") event.preventDefault()
+                    return
+                } 
+                if(vm.tabs[index].linkOnly) {
                     return
                 }
                 var el = this

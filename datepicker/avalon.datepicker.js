@@ -10,6 +10,8 @@ define(["../avalon.getModel",
         "./avalon.datepicker.lang",
         "text!./avalon.datepicker.html", 
         "../dropdown/avalon.dropdown.js",
+        "../slider/avalon.slider.js",
+        "css!../chameleon/oniui-common.css",
         "css!./avalon.datepicker.css"], function(avalon, holidayDate, sourceHTML) {
     var calendarTemplate = sourceHTML,
         HOLIDAYS,
@@ -37,7 +39,6 @@ define(["../avalon.getModel",
             year
 
         calendarTemplate = options.template = options.getTemplate(calendarTemplate, options)
-        HOLIDAYS = initHoliday.call(options, holidayDate) || {}
         avalon.scan(element, vmodels)
         options.disabled = element.disabled || options.disabled
         formatDate = formatDate.bind(options) //兼容IE6、7使得formatDate方法中的this指向options
@@ -70,12 +71,23 @@ define(["../avalon.getModel",
         initValue()
 
         var vmodel = avalon.define(data.datepickerId, function(vm) {
-            avalon.mix(vm, options)
-            vm.$skipArray = ["container", "showDatepickerAlways", "timer", "sliderMinuteOpts", "sliderHourOpts", "template", "widgetElement", "dayNames", "allowBlank", "months", "years", "numberOfMonths", "showOtherMonths", "watermark", "weekNames", "stepMonths", "changeMonthAndYear", "startDay", "mobileMonthAndYear"]
+
+            //初始化增加语言包设置
+            avalon.mix(vm, options, {
+                regional: widget.defaultRegional
+            })
+            vm.$skipArray = ["container", "showDatepickerAlways", "timer", "sliderMinuteOpts",
+                "sliderHourOpts", "template", "widgetElement", "rootElement", "dayNames", "allowBlank",
+                "months", "years", "numberOfMonths",
+                "showOtherMonths", "watermark", "weekNames",
+                "stepMonths", "changeMonthAndYear", "startDay", "mobileMonthAndYear",
+                "formatErrorTip"    //格式错误提示文案
+            ]
             vm.dateError = vm.dateError || ""
             vm.weekNames = []
             vm.tip = vm.tip || ""
             vm.widgetElement = element
+            vm.rootElement = {}
             vm.data = []
             vm.prevMonth = -1 //控制prev class是否禁用
             vm.nextMonth = -1 //控制next class是否禁用
@@ -85,9 +97,7 @@ define(["../avalon.getModel",
             vm.day = day
             vm.years = years
             vm.months = [1,2,3,4,5,6,7,8,9,10,11,12]
-            vm._position = "absolute"
-            vm.minute = 0
-            vm.hour = 0
+            vm._position = "absolute"            
             vm._datepickerToggle = true
             vm._monthToggle = false
             vm._yearToggle = false
@@ -95,7 +105,7 @@ define(["../avalon.getModel",
             vm.elementYear = year
             vm.elementMonth = month
             vm._setWeekClass = function(dayName) {
-                var dayNames = vmodel.dayNames
+                var dayNames = vmodel.regional.day
                 if ((dayNames.indexOf(dayName) % 7 == 0) || (dayNames.indexOf(dayName) % 7 == 6)) {
                     return "oni-datepicker-week-end"
                 } else {
@@ -130,10 +140,7 @@ define(["../avalon.getModel",
                     return ""
                 }
                 dayItem = datepickerData[rowIndex]["rows"][outerIndex][index]
-                if (dayItem.month) {
-                    className = "oni-datepicker-day-hover"
-                }
-
+                className = "oni-datepicker-day-hover"
                 return className
             }
             vm._setMobileYearClass = function(yearItem, elementYear, monthItem, elementMonth) {
@@ -166,6 +173,8 @@ define(["../avalon.getModel",
                     })
                 }
             }
+            vm.$yearVmId = vm.$id+"year";
+            vm.$monthVmId = vm.$id+"month";
             vm.$yearOpts = {
                 width: 60,
                 listWidth: 60,
@@ -219,13 +228,13 @@ define(["../avalon.getModel",
                     vmodel._datepickerToggle = false
                 }
             }
-            vm._getNow = function() {
-                var date = new Date(),
-                    time = date.toTimeString(),
+            vm.getInitTime = function(timeDate) {
+                var date = formatDate(timeDate),
+                    time = timeDate.toTimeString(),
                     now = time.substr(0, time.lastIndexOf(":"));
-                vmodel.hour = date.getHours()
-                vmodel.minute = date.getMinutes()
-                return now
+                vmodel.hour = timeDate.getHours()
+                vmodel.minute = timeDate.getMinutes()
+                return date + ' ' + now
             }
             vm._dateCellRender = function(outerIndex, index, rowIndex, date) {
                 if (vmodel.dateCellRender) {
@@ -314,13 +323,13 @@ define(["../avalon.getModel",
             }
             // 年份选择器渲染ok之后为其绑定dropdown组件并扫描渲染出dropdown
             vm._afterYearRendered = function() {
-                this.setAttribute("ms-widget", "dropdown,$,$yearOpts")
+                this.setAttribute("ms-widget", ["dropdown", vm.$yearVmId, "$yearOpts"].join(","))
                 this.setAttribute("ms-duplex", "year")
                 avalon.scan(this, vmodel)
             }
             // 月份选择器渲染ok之为其绑定dropdown组件并扫描渲染出dropdown
             vm._afterMonthRendered = function() {
-                this.setAttribute("ms-widget", "dropdown,$,$monthOpts")
+                this.setAttribute("ms-widget", ["dropdown", vm.$monthVmId, "$monthOpts"].join(","))
                 this.setAttribute("ms-duplex", "_month")
                 avalon.scan(this, vmodel)
             }
@@ -341,8 +350,18 @@ define(["../avalon.getModel",
                         date = formatDate(_date),
                         calendarWrapper = options.type ==="range" ? element["data-calenderwrapper"] : null
                     
-                    vmodel.tip = getDateTip(cleanDate(new Date(year, month, day))).text
+                    vmodel.tip = getDateTip(cleanDate(_date)).text
                     vmodel.dateError = "#cccccc"
+                    if (!calendarWrapper && !vmodel.timer) {
+                        element.value = date
+                        vmodel.toggle = false
+                    } else { // range datepicker时需要切换选中日期项的类名
+                        if (vmodel.timer) {
+                            date = date + " " + timerFilter(vmodel.hour) + ":" + timerFilter(vmodel.minute)
+                        }
+                        element.value = date
+                    }
+
                     if (month === _oldMonth && year === _oldYear && vmodel.day == day) {
                         vmodel.$fire("day", day)
                     } else {
@@ -357,15 +376,6 @@ define(["../avalon.getModel",
                     } else if (year !== _oldYear) {
                         vmodel.year = year
                     }
-                    if (!calendarWrapper && !vmodel.timer) {
-                        element.value = date
-                        vmodel.toggle = false
-                    } else { // range datepicker时需要切换选中日期项的类名
-                        if (vmodel.timer) {
-                            date = date + " " + timerFilter(vmodel.hour) + ":" + timerFilter(vmodel.minute)
-                        }
-                        element.value = date
-                    }
                 }
                 if (!vmodel.showDatepickerAlways && !duplexVM) {
                     if (typeof vmodel.onSelect === "string") {
@@ -375,9 +385,15 @@ define(["../avalon.getModel",
                     vmodel.onSelect.call(null, date, vmodel, avalon(element).data())
                 }
             }
+
+            //设置语言包
+            vm.setRegional = function(regional) {
+                vmodel.regional = regional
+            }
             
             vm.$init = function(continueScan) {
-                var elementPar = element.parentNode
+                var elementPar = element.parentNode,
+                    initDate = null
 
                 calendar = avalon.parseHTML(calendarTemplate).firstChild
                 elementPar.insertBefore(calendar, element)
@@ -394,7 +410,7 @@ define(["../avalon.getModel",
                     elementPar.insertBefore(div,element)
                     div.appendChild(element)
                     if (vmodel.showTip) {
-                        var tip = avalon.parseHTML("<div class='oni-datepicker-tip'>{{tip}}<i class='oni-icon oni-icon-calendar-o'>&#xf133;</i></div>")
+                        var tip = avalon.parseHTML("<div class='oni-datepicker-tip'>{{tip}}<i class='oni-icon oni-icon-calendar-o'>&#xf088;</i></div>")
                         div.appendChild(tip)
                     } else {
                         element.style.paddingRight = "0px"
@@ -403,11 +419,15 @@ define(["../avalon.getModel",
                 }
                 if (vmodel.timer) {
                     vmodel.width = 100
-                    if (_initValue && validateDate(_initValue)) {
-                        _initValue = _initValue + " " + vmodel._getNow()
+                    var time = validateTime(_initValue)
+                    if (_initValue && time) {
+                        _initValue = vmodel.getInitTime(time)
                     }
                 }
                 element.value = _initValue
+                if (initDate = parseDate(_initValue)) {
+                    vmodel.tip = getDateTip(cleanDate(initDate)).text
+                }
                 element.disabled = vmodel.disabled
 
                 if (vmodel.showDatepickerAlways) {
@@ -425,6 +445,7 @@ define(["../avalon.getModel",
                 } else {
                     avalon.scan(div, [vmodel])
                 }
+                vm.rootElement = div
                 avalon.scan(calendar, [vmodel].concat(vmodels))
                 setTimeout(function() {
                     calendarDays(vmodel.month, vmodel.year)
@@ -433,6 +454,9 @@ define(["../avalon.getModel",
                     //vmodels是不包括vmodel的
                     options.onInit.call(element, vmodel, options, vmodels)
                 }
+            }
+            vm._getTitle = function(year, month) {
+                return vmodel.regional.titleFormat.call(vmodel.regional, year, month)
             }
             vm.$remove = function() {
                 var elementPar = element.parentNode,
@@ -481,7 +505,12 @@ define(["../avalon.getModel",
                     vmodel.year = elementYear
                 } else if (vmodel.month != elementMonth) {
                     vmodel.month = elementMonth
-                } 
+                }
+
+                // 防止Month, Year下拉框的浮层不被关闭。
+                avalon.vmodels[vmodel.$yearVmId] && (avalon.vmodels[vmodel.$yearVmId].toggle = false);
+                avalon.vmodels[vmodel.$monthVmId] && (avalon.vmodels[vmodel.$monthVmId].toggle = false);
+
                 vmodel.onClose(new Date(vmodel.year,vmodel.month,vmodel.day), vmodel)
             }
         })
@@ -515,7 +544,6 @@ define(["../avalon.getModel",
                 dateMonth, 
                 dateDay
 
-
             for (var i = 0, len = data.length; i < len; i++) {
                 var dataItem = data[i]
 
@@ -529,7 +557,7 @@ define(["../avalon.getModel",
                             var dayItem = dataRow[k],
                                 date = dayItem.day
 
-                            if (date == newDay) {
+                            if (date == newDay && dayItem.month == month && dayItem.year == year) {
                                 dayItem.selected = true
                                 vmodel.data[i]["rows"][j].set(k, "").set(k, dayItem._day)
                             } else if (dayItem.selected) {
@@ -614,7 +642,7 @@ define(["../avalon.getModel",
                 vmodel.onSelect.call(null, date, vmodel, avalon(element).data())
             } else {
                 if (!vmodel.allowBlank) {
-                    vmodel.tip = '格式错误';
+                    vmodel.tip = vmodel.formatErrorTip;
                     vmodel.dateError = '#ff8888';
                 } else {
                     vmodel.tip = ""
@@ -635,7 +663,7 @@ define(["../avalon.getModel",
                 dateDisabled = false;
 
             if (value && !_date) {
-                options.tip = "格式错误"
+                options.tip = options.formatErrorTip
                 options.dateError = "#ff8888"
                 _initDate = today
             }
@@ -738,7 +766,7 @@ define(["../avalon.getModel",
                     vmodel.toggle = true;
                 }
                 // 37:向左箭头； 39:向右箭头；8:backspace；46:Delete
-                if((keyCode<48 || keyCode>57) && keyCode !==13 && keyCode!==8 && options.separator !== operate && keyCode !== 27 && keyCode !== 9 && keyCode !== 37 && keyCode!== 39 && keyCode!==46) {
+                if((keyCode<48 || (keyCode>57 && keyCode<96) || keyCode>105) && keyCode !==13 && keyCode!==8 && options.separator !== operate && keyCode !== 27 && keyCode !== 9 && keyCode !== 37 && keyCode!== 39 && keyCode!==46) {
                     e.preventDefault();
                     return false;
                 } 
@@ -781,7 +809,7 @@ define(["../avalon.getModel",
                         vmodel.dateError = "#cccccc"
                         return
                     }
-                    vmodel.tip = "格式错误";
+                    vmodel.tip = vmodel.formatErrorTip;
                     vmodel.dateError = "#ff8888";
                 }
             })
@@ -816,7 +844,7 @@ define(["../avalon.getModel",
         function calendarHeader() {
             var weekNames = [],
                 startDay = options.startDay;
-            for(var j = 0 , w = options.dayNames ; j < 7 ; j++){
+            for(var j = 0 , w = vmodel.regional.dayNames ; j < 7 ; j++){
                 var n = ( j + startDay ) % 7;
                 weekNames.push(w[n]);
             }
@@ -917,6 +945,8 @@ define(["../avalon.getModel",
                 dayItem = datepickerData[i]["rows"][m][n],
                 rowItem = vmodel.data[i]["rows"][m]
 
+            _day = _day + ''
+
             if (dateDay === +day && dateMonth === month && dateYear === year) {
                 selected = true
             }    
@@ -926,7 +956,7 @@ define(["../avalon.getModel",
             } else if (dayItem._day == _day) {
                 avalon.mix(dayItem, {month: dateMonth, year: dateYear})
             } else {
-                avalon.mix(dayItem, {day:dateDay+"",_day: _day+"", month: dateMonth, year: dateYear, weekend: weekend, selected: selected, dateDisabled: dateDisabled})
+                avalon.mix(dayItem, {day:dateDay+"",_day: _day, month: dateMonth, year: dateYear, weekend: weekend, selected: selected, dateDisabled: dateDisabled})
                 rowItem.set(n, _day)
             }
         }
@@ -988,20 +1018,74 @@ define(["../avalon.getModel",
                 return date;
             }
         }
+        // 检验time
+        function validateTime(date) {
+            if (typeof date == "string") {
+                var theDate = parseDate(date),
+                    timeReg = /\s[0-2]?[0-9]:[0-5]?[0-9]/,
+                    _time = date.match(timeReg)
+                if (theDate && _time && _time.length) {
+                    var time = _time[0].split(':'),
+                        hour = +time[0],
+                        minute = +time[1]
+                    theDate = new Date(theDate.getFullYear(), theDate.getMonth(), theDate.getDate(), hour, minute)
+                }
+                return theDate
+            } else {
+                return date;
+            }
+        }
         return vmodel
     }
+
+    widget.regional = []
+    widget.regional["zh-CN"] = {
+        holidayDate: initHoliday(holidayDate),
+        dayNames: ['日', '一', '二', '三', '四', '五', '六'],  //该变量被注册到了vm中，同时在方法中使用
+        weekDayNames: ['周日', '周一', '周二', '周三', '周四', '周五', '周六'],
+        monthNames: ['一月','二月','三月','四月','五月','六月',
+            '七月','八月','九月','十月','十一月','十二月'],
+        monthNamesShort: ['一月','二月','三月','四月','五月','六月',
+            '七月','八月','九月','十月','十一月','十二月'],
+        closeText: "Done",
+        prevText: "前",
+        prevDayText: "昨天",
+        nextText: "后",
+        nextDayText: "明天",
+        dayAfterTomorrow: "后天",
+        currentDayText: "今天",
+        currentDayFullText: "今天",
+        showMonthAfterYear: true,
+        titleFormat: function(year, month) {
+            return year + "年" + " " + this.monthNames[month]
+        },
+        dayText: "天",
+        weekText: "周",
+        yearText: "年",
+        monthText: "月",
+        timerText: "时间",
+        hourText: "时",
+        minuteText: "分",
+        nowText: "现在",
+        confirmText: "确定"
+    }
+
+    //设置默认语言包
+    widget.defaultRegional = widget.regional["zh-CN"]
+
     widget.version = 1.0
     widget.defaults = {
-        dayNames : ['日', '一', '二', '三', '四', '五', '六'], //@interface 日期名列表，从周日开始，可以配置为["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] 
         startDay: 1, //@config 设置每一周的第一天是哪天，0代表Sunday，1代表Monday，依次类推, 默认从周一开始
-        width: 90,
-        showTip: true,
+        minute: 0, //@config 设置time的默认minute
+        hour: 0, //@config 设置time的hour
+        width: 90, //@config 设置日历框宽度
+        showTip: true, //@config 是否显示节日提示
         disabled: false, //@config 是否禁用日历组件
         changeMonthAndYear: false, //@config 是否可以通过下拉框选择月份或者年份
         mobileMonthAndYear: false, //@config PC端可以通过设置changeMonthAndYear为true使用dropdown的形式选择年份或者月份，但是移动端只能通过设置mobileMonthAndYear为true来选择月份、年份
         showOtherMonths: false, //@config 是否显示非当前月的日期
         numberOfMonths: 1, //@config 一次显示的日历月份数, 默认一次显示一个
-        allowBlank : false,
+        allowBlank : false, //@config 是否允许日历框为空
         minDate : null, //@config 最小的可选日期，可以配置为Date对象，也可以是yyyy-mm-dd格式的字符串，或者当分隔符是“/”时，可以是yyyy/mm/dd格式的字符串
         maxDate : null, //@config 最大的可选日期，可以配置为Date对象，也可以是yyyy-mm-dd格式的字符串，或者当分隔符是“/”时，可以是yyyy/mm/dd格式的字符串
         stepMonths : 1, //@config 当点击next、prev链接时应该跳过几个月份, 默认一个月份
@@ -1021,10 +1105,10 @@ define(["../avalon.getModel",
          * @param vmodel {Vmodel} 日历组件对应vmodel
          * @param dateItem {Object} 对应的包含日期相关信息的对象
          */
-        dateCellRender: false,
-        watermark: true,
-        zIndex: -1,
-        showDatepickerAlways: false,
+        dateCellRender: false, // 是否可以自定义日历单元格内容
+        watermark: true, //@config 是否显示水印文字
+        zIndex: -1, //@config设置日历的z-index
+        showDatepickerAlways: false, //@config是否总是显示datepicker
         timer: false, //@config 是否在组件中可选择时间
         /**
          * @config {Function} 选中日期后的回调
@@ -1049,17 +1133,7 @@ define(["../avalon.getModel",
          * @param str {String} 要解析的日期字符串
          * @returns {Date} Date格式的日期
          */
-        parseDate: function(str){
-            if (!str) {
-                return null
-            }
-            if (avalon.type(str) === "date") return str
-            var separator = this.separator;
-            var reg = "^(\\d{4})" + separator+ "(\\d{1,2})"+ separator+"(\\d{1,2})[\\s\\w\\W]*$";
-            reg = new RegExp(reg);
-            var x = str.match(reg);
-            return x ? new Date(x[1],x[2] * 1 -1 , x[3]) : null;
-        },
+        parseDate: parseDate,
         /**
          * @config {Function} 将日期对象转换为符合要求的日期字符串
          * @param date {Date} 要格式化的日期对象
@@ -1084,6 +1158,7 @@ define(["../avalon.getModel",
             return n;
         },
         widgetElement: "", // accordion容器
+        formatErrorTip: "格式错误",
         getTemplate: function(str, options) {
             return str;
         }
@@ -1102,13 +1177,13 @@ define(["../avalon.getModel",
         date.setMilliseconds(0);
         return date;
     }
-    // 获取节日信息
+    // 获取节日信息并设置相应显示，提供中文语言包对于节日的支持
     function initHoliday( data ){
         var _table = {},
             _data = [];
         for( var k in data ){
             var v = data[ k ],
-                _date = this.parseDate( k );
+                _date = parseDate( k );
 
             if( _date ){
                 v.date = _date;
@@ -1134,34 +1209,57 @@ define(["../avalon.getModel",
             }
         }
         return _table;
-    };
+    }
+
+    function parseDate(str){
+        if (!str) {
+            return null
+        }
+        if (avalon.type(str) === "date") return str
+        var separator = this.separator || "-";
+        var reg = "^(\\d{4})" + separator+ "(\\d{1,2})"+ separator+"(\\d{1,2})[\\s\\w\\W]*$";
+        reg = new RegExp(reg);
+        var x = str.match(reg);
+        return x ? new Date(x[1],x[2] * 1 -1 , x[3]) : null;
+    }
+
     // 解析传入日期，如果是节日或者节日前三天和后三天只能，会相应的显示节日前几天信息，如果是今天就显示今天，其他情况显示日期对应的是周几
     function getDateTip(curDate) {
         if(!curDate)
             return;
+
+        //如果没有传递语言设置，使用默认的语言包
+        var regional
+        if(this.$id && this.regional) {
+            regional = this.regional
+        } else {
+            regional = widget.defaultRegional
+        }
+
+        var holidays = regional.holidayDate || {}
         var now = (cleanDate(new Date())).getTime(),
             curTime = curDate.getTime(),
-            dayNames = ['日', '一', '二', '三', '四', '五', '六'];
+            dayNames = regional.dayNames;
         if(now == curTime) {
-            return { 
-                    text : '今天', 
-                    cellClass : 'c_today', 
-                    cellText : '今天'
+            return {
+                    text : regional.currentDayFullText,
+                    cellClass : 'c_today',
+                    cellText : regional.currentDayText
                 };
         } else if(now == curTime - ONE_DAY) {
-            return { 
-                    text : '明天', 
-                    cellClass : "" 
+            return {
+                    text : regional.nextDayText,
+                    cellClass : ""
                 };
         } else if(now == curTime - ONE_DAY * 2) {
             return {
-                    text : '后天' , 
-                    cellClass : "" 
+                    text : regional.dayAfterTomorrow ,
+                    cellClass : ""
                 };
         }
-        var tip = HOLIDAYS && HOLIDAYS[curDate.getTime()];
+        var tip = holidays && holidays[curDate.getTime()];
         if(!tip) {
-            return {text: '周' + dayNames[curDate.getDay()]};
+            return {text: regional.weekDayNames[curDate.getDay()]};
         } else {
             return tip;
         }
@@ -1182,4 +1280,6 @@ define(["../avalon.getModel",
  [移动端日期、年份选择](avalon.datepicker.ex10.html)
  [具有时间选择功能的datepicker](avalon.datepicker.ex11.html)
  [带格式化输出配置的datepicker](avalon.datepicker.ex12.html)
+ [多语言支持](avalon.datepicker.ex13.html)
+ [datepicker的验证](avalon.datepicker.ex14.html)
  */

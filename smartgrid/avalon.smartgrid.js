@@ -221,6 +221,7 @@ define(["avalon",
             ],    //默认[10,20,50,100]
             onInit: function(pagerVM, options, vmodels) {
                 vmodel && (vmodel.pager = pagerVM)
+                pagerVM && vmodel._entryCount(pagerVM)
             }
         }
         options.pageable = options.pageable !== void 0 ? options.pageable : true;
@@ -243,11 +244,10 @@ define(["avalon",
                 pager.onInit = function(pagerVM, options, vmodels) {
                     vmodel && (vmodel.pager = pagerVM)
                     onInit(pagerVM, options, vmodels)
+                    pagerVM && vmodel._entryCount(pagerVM)
                 }
             }
             avalon.mix(options.$pagerConfig, options.pager)
-        } else {
-            options.pager = {};
         }
         options.pager = null
         //方便用户对原始模板进行修改,提高制定性
@@ -287,6 +287,7 @@ define(["avalon",
             vm._filterCheckboxData = [];
             vm.loadingVModel = null;
             vm._dataRender = false
+            vm.perPages = void 0
             vm._hiddenAffixHeader = function(column, allChecked) {
                 var selectable = vmodel.selectable
                 return selectable && selectable.type && column.key=='selected' && !allChecked
@@ -303,6 +304,16 @@ define(["avalon",
                 });
                 return selectedData.concat(vmodel._enabledData);
             };
+            vm._entryCount = function(pagerVM) {
+                if(vm.perPages !== void 0) return
+                function countEntry(n) {
+                    var data = vm.data
+                    vm.perPages = n
+                    if(data.length > n) vm.render(data.slice(0, n))
+                }
+                pagerVM.$watch("perPages", countEntry)
+                countEntry(pagerVM.perPages)
+            }
             vm.selectAll = function (b) {
                 b = b !== void 0 ? b : true;
                 vmodel._selectAll(null, b);
@@ -399,7 +410,7 @@ define(["avalon",
                         }
                     }
                     if (val) {
-                        vmodel._enabledData = vmodel._allEnabledData;
+                        vmodel._enabledData = vmodel._allEnabledData.concat();
                     } else {
                         vmodel._enabledData = [];
                     }
@@ -430,7 +441,7 @@ define(["avalon",
             };
             vm._setColumnWidth = function (resize) {
                 var cells = vmodel._container.getElementsByTagName('tr')[0].cells, columns = vmodel.columns, _columns = columns.$model, $gridContainer = avalon(vmodel.container), containerWidth = $gridContainer.width(), minColumnWidth = getMinColumnWidth(_columns), firstStringColumn = getFirstStringColumn(columns, vmodel);
-                if (minColumnWidth > containerWidth && !resize) {
+                if (minColumnWidth > containerWidth && !resize || !vm.autoResize) {
                     $gridContainer.css('width', minColumnWidth);
                     firstStringColumn.width = firstStringColumn.configWidth;
                 } else {
@@ -467,6 +478,9 @@ define(["avalon",
                         data[name] = data[name] !== void 0 ? data[name] : column.defaultValue;
                     }
                 }
+                if(vm.pageable && vm.pager && vm.pager.perPages) {
+                    if(datas.length > vm.pager.perPages) datas = datas.slice(0, vm.pager.perPages)
+                }
                 html = fn({
                     data: datas,
                     columns: _columns,
@@ -494,7 +508,7 @@ define(["avalon",
              * @interface 增加行，已經渲染的不會再操作
              * @param 新增的行
              */
-            vm.addRows = function(data, init) {
+            vm.addRows = function(data, init, noShowLoading) {
                 // 防止 addRows([])带来问题
                 if((!data || !data.length) && !init) return
                 var tableTemplate = "",
@@ -527,11 +541,11 @@ define(["avalon",
                     vmodel._allSelected = allSelected;
                     getSelectedData(vmodel);
                 }
-                vmodel.showLoading(vmodel.data);
+                if (!noShowLoading) vmodel.showLoading(vmodel.data);
                 avalon.nextTick(function () {
                     avalon.scan(vmodel.container, [vmodel].concat(vmodels));
                     vmodel._setColumnWidth();
-                    vmodel.hideLoading();
+                    if (!noShowLoading) vmodel.hideLoading();
                 });
                 if (sorting) sorting = false
             }
@@ -555,7 +569,7 @@ define(["avalon",
                 }
                 if(!vmodel.getLen(vmodel.data)) vmodel.render(void 0, true)
             }
-            vm.render = function (data, init) {
+            vm.render = function (data, init, noShowLoading) {
                 if (avalon.type(data) === 'array') {
                     vmodel.data = data;
                 } else {
@@ -568,7 +582,7 @@ define(["avalon",
                 } else {
                     $initRender = false
                 }
-                vmodel.addRows(void 0, init)
+                vmodel.addRows(void 0, init, noShowLoading)
                 if (sorting) {
                     sorting = false;
                 } else if (!init) {
@@ -608,13 +622,14 @@ define(["avalon",
                 }
                 element.resizeTimeoutId = 0;
                 callbacksNeedRemove.resizeCallback = avalon(window).bind('resize', function () {
+                    if(!vmodel.autoResize) return
                     clearTimeout(element.resizeTimeoutId);
                     var clientWidth = avalon(window).width();
                     if (clientWidth <= vmodel.containerMinWidth) {
                         element.style.width = vmodel.containerMinWidth + 'px';
                     }
                     element.resizeTimeoutId = setTimeout(function () {
-                        vmodel._setColumnWidth(true);
+                        vmodel._container && vmodel._setColumnWidth(true);
                     }, 150);
                 });
                 if (typeof options.onInit === 'function') {
@@ -632,6 +647,7 @@ define(["avalon",
     widget.defaults = {
         container: '',
         // element | id
+        autoResize: true,
         data: [],
         columns: [],
         allChecked: true,
@@ -723,7 +739,7 @@ define(["avalon",
             }
             enabledData.push(dataItem);
         }
-        vmodel._allEnabledData = enabledData;
+        vmodel._allEnabledData = enabledData.concat();
     }
     function getSelectedData(vmodel) {
         var datas = vmodel.data, enabledData = vmodel._enabledData = [];
@@ -792,7 +808,7 @@ define(["avalon",
                 column.toggle = true;
             }
             column.configWidth = columnWidth;
-            if (!columnWidth) {
+            if (!columnWidth && _columnWidth) {
                 if (_columnWidth.indexOf('%')) {
                     columnWidth = parentContainerWidth * parseInt(_columnWidth) / 100;
                     column.configWidth = columnWidth;
@@ -807,6 +823,8 @@ define(["avalon",
             if (column.sortable) {
                 column.sortTrend = 'ndb';
             }
+            // 防止某些情形下format被覆盖
+            if(avalon.isFunction(format)) return
             if (format && !options.htmlHelper[format]) {
                 options.htmlHelper[format] = function (vmId, field, index, cellValue, rowData) {
                     avalon.log('\u65B9\u6CD5' + format + '\u672A\u5B9A\u4E49');

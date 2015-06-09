@@ -6,6 +6,7 @@
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width">
         <meta name="descriptions" content="datepicker组件方便快速创建功能齐备的日历组件，通过不同的配置日历可以满足显示多个月份、通过prev、next切换月份、或者通过下拉选择框切换日历的年份、月份，当然也可以手动输入日期，日历组件也会根据输入域中的日期值高亮显示对应日期等等各种需求
+
  " />
         <link type="text/css" rel="stylesheet" href="../style/avalon.doc.css"
         />
@@ -43,6 +44,36 @@
                         <td>设置每一周的第一天是哪天，0代表Sunday，1代表Monday，依次类推, 默认从周一开始</td>
                     </tr>
                     <tr>
+                        <td>minute</td>
+                        <td>Number</td>
+                        <td>0</td>
+                        <td>设置time的默认minute</td>
+                    </tr>
+                    <tr>
+                        <td>hour</td>
+                        <td>Number</td>
+                        <td>0</td>
+                        <td>设置time的hour</td>
+                    </tr>
+                    <tr>
+                        <td>width</td>
+                        <td>Number</td>
+                        <td>90</td>
+                        <td>设置日历框宽度</td>
+                    </tr>
+                    <tr>
+                        <td>showTip</td>
+                        <td>Boolean</td>
+                        <td>true</td>
+                        <td>是否显示节日提示</td>
+                    </tr>
+                    <tr>
+                        <td>disabled</td>
+                        <td>Boolean</td>
+                        <td>false</td>
+                        <td>是否禁用日历组件</td>
+                    </tr>
+                    <tr>
                         <td>changeMonthAndYear</td>
                         <td>Boolean</td>
                         <td>false</td>
@@ -65,6 +96,12 @@
                         <td>Number</td>
                         <td>1</td>
                         <td>一次显示的日历月份数, 默认一次显示一个</td>
+                    </tr>
+                    <tr>
+                        <td>allowBlank</td>
+                        <td>Boolean</td>
+                        <td>false</td>
+                        <td>是否允许日历框为空</td>
                     </tr>
                     <tr>
                         <td>minDate</td>
@@ -161,10 +198,22 @@
                         </td>
                     </tr>
                     <tr>
+                        <td>zIndex</td>
+                        <td>Unary</td>
+                        <td>-1</td>
+                        <td>是否显示水印文字</td>
+                    </tr>
+                    <tr>
+                        <td>showDatepickerAlways</td>
+                        <td>Boolean</td>
+                        <td>false</td>
+                        <td>设置日历的z-index</td>
+                    </tr>
+                    <tr>
                         <td>timer</td>
                         <td>Boolean</td>
                         <td>false</td>
-                        <td>是否在组件中可选择时间</td>
+                        <td>是否总是显示datepicker</td>
                     </tr>
                     <tr>
                         <td>onSelect</td>
@@ -239,9 +288,9 @@
                         </td>
                     </tr>
                     <tr>
-                        <td>parseDate(str)</td>
+                        <td>parseDate</td>
                         <td>Function</td>
-                        <td></td>
+                        <td>parseDate</td>
                         <td>将符合日期格式要求的字符串解析为date对象并返回，不符合格式的字符串返回null,用户可以根据自己需要自行配置解析过程
                             <table border="1">
                                 <tr>
@@ -286,16 +335,6 @@
                             </table>
                         </td>
                     </tr>
-                    <tr>
-                        <td align="center" colspan="4">接口方法与固有属性</td>
-                    </tr>
-                    <tr>
-                        <td>dayNames</td>
-                        <td>Array</td>
-                        <td>['日', '一', '二', '三', '四', '五', '六']</td>
-                        <td>日期名列表，从周日开始，可以配置为["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday",
-                            "Friday", "Saturday"]</td>
-                    </tr>
                 </table>
             </fieldset>
             <ul class="example-links">
@@ -334,6 +373,12 @@
                 </li>
                 <li>
                     <a href="avalon.datepicker.ex12.html">带格式化输出配置的datepicker</a>
+                </li>
+                <li>
+                    <a href="avalon.datepicker.ex13.html">多语言支持</a>
+                </li>
+                <li>
+                    <a href="avalon.datepicker.ex14.html">datepicker的验证</a>
                 </li>
             </ul>
         </div>

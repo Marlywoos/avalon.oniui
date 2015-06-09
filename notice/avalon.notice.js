@@ -10,7 +10,7 @@ define(["../avalon.getModel", "text!./avalon.notice.html", "css!../chameleon/oni
         affixBoxs = [], // 存储吸顶的notice元素，且只保存弹出的notice
         affixHeights = [], //存储吸顶元素对应的height、width、offsetTop
         isIE6 = (window.navigator.userAgent || '').toLowerCase().indexOf('msie 6') !== -1,
-        maxZIndex = getMaxZIndex();
+        maxZIndex = 0;
     var widget = avalon.ui.notice = function(element, data, vmodels) {
         var options = data.noticeOptions,
             temp = template
@@ -46,10 +46,11 @@ define(["../avalon.getModel", "text!./avalon.notice.html", "css!../chameleon/oni
         var vmodel = avalon.define(data.noticeId, function(vm) {
             avalon.mix(vm, options);
             vm.$closeTimer = 0; // 定时器引用
-            vm.$skipArray = ["template", "widgetElement", "_isAffix", "container", "elementHeight"];
+            vm.$skipArray = ["template", "widgetElement", "_isAffix", "container", "elementHeight", "rootElement"];
             vm.elementHeight = 0
             vm.content = vm.content || elementInnerHTML;
             vm._isAffix = vm.isPlace && vm.isAffix;
+            vm.rootElement = {};
             vm.widgetElement = element;
             // type的改变影响notice显示类的改变
             vm.typeClass = vm[vm.type + "Class"];
@@ -102,6 +103,9 @@ define(["../avalon.getModel", "text!./avalon.notice.html", "css!../chameleon/oni
                 var container = null;
                 var sourceFragment = avalon.parseHTML(options.template);
                 var AffixPlaceholder = sourceFragment.lastChild;
+                if (!maxZIndex) {
+                    maxZIndex = getMaxZIndex()                    
+                }
                 templateView = sourceFragment.firstChild;
                 container = positionNoticeElement(); //获取存储notice的容器
                 container.appendChild(templateView);
@@ -117,6 +121,7 @@ define(["../avalon.getModel", "text!./avalon.notice.html", "css!../chameleon/oni
                     container.appendChild(AffixPlaceholder);
                     avalon.scan(AffixPlaceholder, [vmodel]);
                 }
+                vm.rootElement = templateView
                 avalon.scan(templateView, [vmodel].concat(vmodels))
                 if (typeof options.onInit === 'function') {
                     //vmodels是不包括vmodel的

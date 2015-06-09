@@ -1,8 +1,7 @@
 define(["../avalon.getModel", 'text!./avalon.rating.html', 'css!../chameleon/oniui-common.css'],
     function(avalon, sourceHTML) {
 
-    var ratingTemplate = sourceHTML,
-        getFunc = function(name, vmodels) {
+    var getFunc = function(name, vmodels) {
             var changeVM = avalon.getModel(name, vmodels);
             return changeVM && changeVM[1][changeVM[0]] || avalon.noop;
         },
@@ -15,11 +14,14 @@ define(["../avalon.getModel", 'text!./avalon.rating.html', 'css!../chameleon/oni
         var options = data.ratingOptions,
             onSelect = getFunc('onSelect', vmodels),
             onFloat = getFunc('onFloat', vmodels),
+            ratingTemplate = options.getTemplate(sourceHTML),
             rating;
 
         var vmodel = avalon.define(data.ratingId, function(vm) {
 
             avalon.mix(vm, options);
+            vm.rootElement = ""
+            vm.widgetElement = element
 
             vm.value = vm.floatValue = element.value;
 
@@ -44,6 +46,10 @@ define(["../avalon.getModel", 'text!./avalon.rating.html', 'css!../chameleon/oni
                 }
             };
 
+            vm.getRating = function() {
+                return vmodel.value
+            }
+
             vm.set = function(value) {
                 vmodel.value = value;
                 vmodel.floatValue = value;
@@ -51,6 +57,7 @@ define(["../avalon.getModel", 'text!./avalon.rating.html', 'css!../chameleon/oni
 
             vm.$init = function() {
                 rating = avalon.parseHTML(ratingTemplate).firstChild;
+                vm.rootElement = rating
                 if (canEdit(element)) {
                     var parentNode = element.parentNode;
                     parentNode.insertBefore(rating, element);
@@ -64,6 +71,9 @@ define(["../avalon.getModel", 'text!./avalon.rating.html', 'css!../chameleon/oni
                     element.appendChild(rating);
                 }
                 avalon.scan(rating.parentNode, [vmodel].concat(vmodels));
+                if (typeof options.onInit === "function") {
+                    options.onInit.call(element, vmodel, options, vmodels)
+                }
             };
 
             vm.$remove = function() {
@@ -90,10 +100,13 @@ define(["../avalon.getModel", 'text!./avalon.rating.html', 'css!../chameleon/oni
         max: 5,
         margin: 3,
         notSelectedColor: '#CECECE',
-        notSelectedContent: '&#xf006;',
+        notSelectedContent: '&#xf08A;',
         selectedColor: '#00A3C2',
-        selectedContent: '&#xf005;',
-        size: 20
+        selectedContent: '&#xf038;',
+        size: 20,
+        getTemplate: function(tmp) {
+            return tmp
+        }
     };
 
     return avalon;

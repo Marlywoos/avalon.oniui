@@ -37,7 +37,7 @@
                 <div ms-widget="rating, $, $rating_5"></div>
             </fieldset>
             <script>
-                require("rating/avalon.rating", function(avalon) {
+                require(["rating/avalon.rating"], function(avalon) {
                     var model = avalon.define("demo", function(vm) {
 
                         vm.ratingValue_1 = 1;
@@ -55,9 +55,9 @@
                         };
 
                         vm.$rating_5 = {
-                            selectedContent: '&#xf054;',
+                            selectedContent: '&#xf040;',
                             selectedColor: 'red',
-                            notSelectedContent: '&#xf054;'
+                            notSelectedContent: '&#xf040;'
                         };
 
                         vm.onSelect = function() {
@@ -113,7 +113,7 @@
                 &lt;div ms-widget="rating, $, $rating_5"&gt;&lt;/div&gt;
             &lt;/fieldset&gt;
             &lt;script&gt;
-                require("rating/avalon.rating", function(avalon) {
+                require(["rating/avalon.rating"], function(avalon) {
                     var model = avalon.define("demo", function(vm) {
 
                         vm.ratingValue_1 = 1;
@@ -131,9 +131,9 @@
                         };
 
                         vm.$rating_5 = {
-                            selectedContent: '&amp;#xf054;',
+                            selectedContent: '&amp;#xf040;',
                             selectedColor: 'red',
-                            notSelectedContent: '&amp;#xf054;'
+                            notSelectedContent: '&amp;#xf040;'
                         };
 
                         vm.onSelect = function() {

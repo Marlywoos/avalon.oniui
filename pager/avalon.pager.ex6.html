@@ -12,22 +12,32 @@
         </script>
         <script>
             require(["pager/avalon.pager"], function() {
+                var pager
                 avalon.define("test", function(vm) {
                     vm.pager = {
                         alwaysShowNext: true,
                         alwaysShowPrev: true,
-                        onJump: function(a){
-                            avalon.log(a)
+                        onInit: function(p) {
+                            pager = p
+                        },
+                        onJump: function(e, data) {
+                           location.href = "#page=" + data.currentPage
                         }
                     }
                     vm.$skipArray = ["pager"]
                 })
+                setTimeout(function() {
+                    pager.currentPage = 4
+                    setTimeout(function() {
+                        pager.currentPage = 3
+                    }, 2000)
+                }, 3000)
                 avalon.scan()
             })
         </script>
     </head>
     <body ms-controller="test">
-        <h1>总是显示上一页与下一页按钮</h1>
+        <h1>总是显示上一页与下一页按钮(与例2对照看)</h1>
         <div ms-widget="pager"></div>
         <pre class="brush:html;gutter:false;toolbar:false">
 &lt;!DOCTYPE html&gt;
